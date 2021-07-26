@@ -38,11 +38,14 @@ import System.Directory (doesFileExist)
 import Text.Megaparsec (
   Parsec,
   chunk,
+  eof,
   errorBundlePretty,
+  label,
   runParser,
   single,
   takeP,
   takeWhile1P,
+  takeWhileP,
   try,
  )
 import Text.URI (mkURI)
@@ -105,7 +108,7 @@ poll Options{factorioStdoutFile, discordWebhookURL, debug} = do
     putStrLn $ "Polling at: " <> show now
 
   -- Read and parse the file.
-  (notifs, players) <- parseLog factorioStdoutFile
+  (notifs, players) <- parseFactorioStdout factorioStdoutFile
 
   -- Send any new notifications.
   lastNotificationTime <- get
@@ -166,10 +169,10 @@ data Notification = Notification
 
 data Action = Join | Leave deriving (Show)
 
-parseLog :: (MonadIO m) => FilePath -> m ([Notification], Set Player)
-parseLog filepath = do
+parseFactorioStdout :: (MonadIO m) => FilePath -> m ([Notification], Set Player)
+parseFactorioStdout filepath = do
   contents <- readFileText filepath
-  notifs <- case runParser logParser filepath contents of
+  notifs <- case runParser factorioStdoutParser filepath contents of
     Left err -> die $ "Could not parse log file: " <> errorBundlePretty err
     Right r -> pure r
   let sortedNotifs = sortOn time notifs
@@ -180,36 +183,43 @@ parseLog filepath = do
     Join -> Set.insert player players
     Leave -> Set.delete player players
 
--- Note that we do not require eof to handle an edge case: if we read the file
--- while it's being written, the last line will be garbage.
-logParser :: Parser [Notification]
-logParser = catMaybes <$> many lineP
+factorioStdoutParser :: Parser [Notification]
+factorioStdoutParser = catMaybes <$> many lineP <* lastLineP
  where
   -- Lines are either a notification, or not.
   lineP :: Parser (Maybe Notification)
-  lineP =
-    (Just <$> try notifP)
-      <|> (takeWhile1P Nothing ('\n' /=) >> single '\n' >> pure Nothing)
+  lineP = label "line" $ (Just <$> try notifP) <|> (Nothing <$ anyLineP)
+
+  anyLineP :: Parser ()
+  anyLineP = label "other line" $ notNewline <* single '\n'
+
+  -- Last line might be a partial line, if we do a read at the same time as the
+  -- server makes a write.
+  lastLineP :: Parser ()
+  lastLineP = label "last line" $ notNewline <* optional (single '\n') <* eof
 
   -- Notifications are a timestamp, action, player, and some filler.
   notifP :: Parser Notification
-  notifP = do
+  notifP = label "notification" $ do
     time <- timeP
     _ <- single ' '
     (action, player) <- eventP
     _ <- single '\n'
     pure Notification{player, time, action}
 
+  notNewline :: Parser ()
+  notNewline = void $ takeWhileP Nothing ('\n' /=)
+
   -- FIXME: This will break in about 8000 years, when we have 5-digit years.
   timeP :: Parser UTCTime
-  timeP = do
+  timeP = label "timestamp" $ do
     t <- takeP (Just "timestamp") $ 4 + 1 + 2 + 1 + 2 + 1 + 2 + 1 + 2 + 1 + 2
     parseTimeM False defaultTimeLocale "%Y-%0m-%0d %0T" $ toString t
 
   eventP :: Parser (Action, Player)
-  eventP = do
+  eventP = label "notification event" $ do
     _ <- single '['
-    action <- (chunk "JOIN" >> pure Join) <|> (chunk "LEAVE" >> pure Leave)
+    action <- (Join <$ chunk "JOIN") <|> (Leave <$ chunk "LEAVE")
     _ <- chunk "] "
     player <- takeWhile1P (Just "username") isAlphaNum
     _ <- chunk $ case action of
