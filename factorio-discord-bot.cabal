@@ -1,0 +1,78 @@
+cabal-version: 3.0
+name:          factorio-discord-bot
+version:       0.1.0.0
+
+common lang
+  build-depends:
+    , base    >=4.12    && <4.15
+    , relude  ^>=1.0.0.1
+
+  default-language:   Haskell2010
+  default-extensions:
+    NoImplicitPrelude
+    Arrows
+    BangPatterns
+    BinaryLiterals
+    ConstrainedClassMethods
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveDataTypeable
+    DeriveFoldable
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DuplicateRecordFields
+    EmptyCase
+    EmptyDataDeriving
+    ExistentialQuantification
+    ExplicitForAll
+    FlexibleContexts
+    FlexibleInstances
+    GADTSyntax
+    GeneralizedNewtypeDeriving
+    HexFloatLiterals
+    ImportQualifiedPost
+    InstanceSigs
+    KindSignatures
+    MultiParamTypeClasses
+    NamedFieldPuns
+    NamedWildCards
+    NumericUnderscores
+    OverloadedStrings
+    PolyKinds
+    PostfixOperators
+    RankNTypes
+    RecordWildCards
+    ScopedTypeVariables
+    StandaloneDeriving
+    StandaloneKindSignatures
+    StrictData
+    TemplateHaskell
+    TupleSections
+    TypeApplications
+    TypeOperators
+    TypeSynonymInstances
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wcompat
+    -Wincomplete-record-updates -Wmissing-home-modules
+    -Wmissing-export-lists -Wredundant-constraints
+
+executable factorio-discord-bot
+  import:         lang
+  main-is:        Main.hs
+
+  -- cabal-fmt: expand cmd/factorio-discord-bot -Main
+  other-modules:
+  hs-source-dirs: cmd/factorio-discord-bot
+  build-depends:
+    , containers            ^>=0.6.5.1
+    , directory             ^>=1.3.6.2
+    , megaparsec            ^>=9.1.0
+    , modern-uri            ^>=0.3.4.1
+    , optparse-applicative  ^>=0.16.1.0
+    , req                   ^>=3.9.1
+    , text                  ^>=1.2.4.1
+    , time                  ^>=1.9.3

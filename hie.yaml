@@ -1,0 +1,4 @@
+cradle:
+  cabal:
+    - path: "cmd/factorio-discord-bot"
+      component: "factorio-discord-bot:exe:factorio-discord-bot"
