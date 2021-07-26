@@ -29,6 +29,7 @@ import Options.Applicative.Builder (
   option,
   progDesc,
   strOption,
+  switch,
  )
 import Options.Applicative.Extra (execParser, helper)
 import Options.Applicative.Types qualified as Args (Parser, ParserInfo)
@@ -49,6 +50,7 @@ import Text.URI (mkURI)
 data Options = Options
   { factorioStdoutFile :: FilePath
   , discordWebhookURL :: Url 'Https
+  , debug :: Bool
   }
   deriving (Show)
 
@@ -66,6 +68,7 @@ optionsParser =
           <> metavar "URL"
           <> help "Discord webhook URL"
       )
+    <*> switch (long "debug" <> help "Output debug information")
 
 parseURLFlag :: ReadM (Url 'Https)
 parseURLFlag = maybeReader $ \s -> do
@@ -82,9 +85,11 @@ argparser =
 -- send a Discord webhook message.
 main :: IO ()
 main = do
-  opts@Options{factorioStdoutFile} <- execParser argparser
+  opts@Options{factorioStdoutFile, debug} <- execParser argparser
   exists <- doesFileExist factorioStdoutFile
   unless exists $ die $ "Error: file at " <> show factorioStdoutFile <> " does not exist"
+
+  when debug $ putStrLn $ "Command line parameters: " <> show opts
 
   now <- getCurrentTime
   void $ flip runStateT now $ forever $ poll opts
@@ -94,13 +99,23 @@ main = do
 -- - https://stackoverflow.com/questions/41230293/how-to-efficiently-follow-tail-a-file-with-haskell-including-detecting-file
 -- - https://hackage.haskell.org/package/tailfile-hinotify-2.0.0.0/docs/System-IO-TailFile.html
 poll :: (MonadIO m) => Options -> StateT UTCTime m ()
-poll Options{factorioStdoutFile, discordWebhookURL} = do
+poll Options{factorioStdoutFile, discordWebhookURL, debug} = do
+  when debug $ do
+    now <- liftIO getCurrentTime
+    putStrLn $ "Polling at: " <> show now
+
   -- Read and parse the file.
   (notifs, players) <- parseLog factorioStdoutFile
 
   -- Send any new notifications.
   lastNotificationTime <- get
   let notifs' = filter ((> lastNotificationTime) . time) notifs
+
+  when debug $ do
+    putStrLn $ "Last notification time: " <> show lastNotificationTime
+    putStrLn $ "Players: " <> show players
+    putStrLn $ "Notifications: " <> show notifs
+    putStrLn $ "New notifications: " <> show notifs'
 
   unless (null notifs') $
     void $
@@ -118,6 +133,7 @@ poll Options{factorioStdoutFile, discordWebhookURL} = do
     Just ns -> put $ time $ last ns
 
   -- Sleep for a bit.
+  when debug $ putStrLn $ replicate 80 '-'
   liftIO $ threadDelay 1_000_000
  where
   renderN :: Notification -> Text
